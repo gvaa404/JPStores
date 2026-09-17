@@ -1,0 +1,22 @@
+{
+  "name": "jp-store-server",
+  "version": "1.0.0",
+  "main": "src.js",
+  "scripts": {
+    "dev": "node src.js",
+    "start": "node src.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0",
+    "jp-store": "file:..",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.10",
+    "razorpay": "^2.9.8",
+    "resend": "^6.28.0"
+  }
+}

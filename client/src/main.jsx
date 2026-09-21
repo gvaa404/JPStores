@@ -1,530 +1,31 @@
 import React, { useEffect, useState, useContext, createContext, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, useNavigate, useLocation, Routes, Route, Link, useParams } from 'react-router-dom';
-import axios from 'axios';
 import {
-  Search, ShoppingBag, Heart, User, LogOut, Package, Settings,
+  ShoppingBag, Heart, User, LogOut, Package, Settings,
   LayoutDashboard, Users, CreditCard, Plus, Trash2, Edit, Truck, X, Eye, EyeOff,
   CheckCircle2, AlertCircle, Mail, ShieldCheck, MapPin, Navigation,
   Home as HomeIcon, Briefcase, Phone, Check, Loader2, Star, SlidersHorizontal,
   ChevronDown, ChevronUp, ChevronRight, ArrowRight, Sparkles, RefreshCw,
-  HelpCircle, Send, MessageSquare, Filter, Clock, Box, Share2, Menu
+  HelpCircle, Send, MessageSquare, Filter, Clock, Box, Share2
 } from 'lucide-react';
 import './styles.css';
 import {
   toastSuccess, toastError, alertSuccess, alertError, alertWarning, alertInfo, confirmDialog
 } from './utils/alert';
+import api from './services/api';
+import Footer from './components/Footer';
+import Header from './components/Header';
+import ProductCard from './components/ProductCard';
+import { StoreProvider, useStore } from './context/StoreContext';
 
-const api = axios.create({ baseURL: '/api' });
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('jp_token');
-  if (token) config.headers.Authorization = 'Bearer ' + token;
-  return config;
-});
-
-// Image helper
-const sample = p => {
+// Image helper — Bug 4 fix: use relative path (Vite proxies /uploads → backend)
+export const sample = p => {
   if (!p?.image) return '/jp-store-logo.png';
   if (p.image.startsWith('http://') || p.image.startsWith('https://')) return p.image;
-  return `http://localhost:4000${p.image}`;
+  if (p.image.startsWith('/uploads')) return p.image;   // served via Vite proxy
+  return p.image;
 };
-
-// ==========================================================================
-// STORE CONTEXT & GLOBAL STATE
-// ==========================================================================
-const StoreContext = createContext();
-
-export function useStore() {
-  return useContext(StoreContext);
-}
-
-function StoreProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [cart, setCart] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('jp_cart') || '[]');
-    } catch {
-      return [];
-    }
-  });
-  const [wishlist, setWishlist] = useState([]);
-
-  const loadUser = async () => {
-    if (localStorage.getItem('jp_token')) {
-      try {
-        const r = await api.get('/me');
-        setUser(r.data);
-      } catch {
-        localStorage.removeItem('jp_token');
-        setUser(null);
-      }
-    }
-  };
-
-  const refreshCatalog = async () => {
-    try {
-      const [pRes, cRes] = await Promise.all([
-        api.get('/products'),
-        api.get('/categories')
-      ]);
-      setProducts(pRes.data);
-      setCategories(cRes.data);
-    } catch (e) {
-      console.error('Catalog load error:', e);
-    }
-  };
-
-  const loadWishlist = async () => {
-    if (!localStorage.getItem('jp_token')) {
-      setWishlist([]);
-      return;
-    }
-    try {
-      const r = await api.get('/wishlist');
-      setWishlist(r.data.map(p => p.id));
-    } catch (e) {
-      console.error('Wishlist load error:', e);
-    }
-  };
-
-  useEffect(() => {
-    loadUser();
-    refreshCatalog();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      loadWishlist();
-    } else {
-      setWishlist([]);
-    }
-  }, [user]);
-
-  // Cart operations
-  const addToCart = (productId, quantity = 1) => {
-    const p = products.find(item => item.id === productId);
-    const pName = p ? p.name : 'Item';
-    setCart(prev => {
-      const next = [...prev];
-      const idx = next.findIndex(i => i.product_id === productId);
-      if (idx > -1) {
-        next[idx].quantity += quantity;
-      } else {
-        next.push({ product_id: productId, quantity });
-      }
-      localStorage.setItem('jp_cart', JSON.stringify(next));
-      return next;
-    });
-    toastSuccess(`Added "${pName}" to bag! ✨`);
-  };
-
-  const updateCartQty = (productId, quantity) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-    setCart(prev => {
-      const next = prev.map(i => i.product_id === productId ? { ...i, quantity } : i);
-      localStorage.setItem('jp_cart', JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const removeFromCart = productId => {
-    setCart(prev => {
-      const next = prev.filter(i => i.product_id !== productId);
-      localStorage.setItem('jp_cart', JSON.stringify(next));
-      return next;
-    });
-    toastSuccess('Removed from shopping bag');
-  };
-
-  const clearCart = () => {
-    setCart([]);
-    localStorage.removeItem('jp_cart');
-  };
-
-  // Wishlist operations
-  const toggleWishlist = async productId => {
-    if (!localStorage.getItem('jp_token')) {
-      return alertInfo('Sign In Required', 'Please sign in to save items to your wishlist.');
-    }
-    try {
-      const res = await api.post('/wishlist/' + productId);
-      if (res.data.added) {
-        setWishlist(prev => [...prev, productId]);
-        toastSuccess('Saved to your wishlist ♡');
-      } else {
-        setWishlist(prev => prev.filter(id => id !== productId));
-        toastSuccess('Removed from wishlist');
-      }
-    } catch (e) {
-      toastError(e.response?.data?.error || 'Wishlist error');
-    }
-  };
-
-  const isWishlisted = productId => wishlist.includes(productId);
-
-  const cartCount = useMemo(() => cart.reduce((s, i) => s + (i.quantity || 1), 0), [cart]);
-
-  const login = async (email, password) => {
-    const r = await api.post('/auth/login', { email, password });
-    localStorage.setItem('jp_token', r.data.token);
-    setUser(r.data.user);
-    return r.data.user;
-  };
-
-  const register = async data => {
-    const r = await api.post('/auth/register', data);
-    localStorage.setItem('jp_token', r.data.token);
-    setUser(r.data.user);
-    return r.data.user;
-  };
-
-  const logout = () => {
-    localStorage.removeItem('jp_token');
-    setUser(null);
-    setWishlist([]);
-    toastSuccess('Signed out successfully');
-  };
-
-  return (
-    <StoreContext.Provider
-      value={{
-        user, setUser, login, register, logout, loadUser,
-        products, categories, refreshCatalog,
-        cart, cartCount, addToCart, updateCartQty, removeFromCart, clearCart,
-        wishlist, toggleWishlist, isWishlisted
-      }}
-    >
-      {children}
-    </StoreContext.Provider>
-  );
-}
-
-// ==========================================================================
-// HEADER & NAVIGATION BAR
-// ==========================================================================
-function Header() {
-  const { user, logout, cartCount, wishlist } = useStore();
-  const nav = useNavigate();
-  const loc = useLocation();
-  const [term, setTerm] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const handleSearch = e => {
-    if (e.key === 'Enter' && term.trim()) {
-      nav('/shop?search=' + encodeURIComponent(term.trim()));
-      setDrawerOpen(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="announcement-bar">
-        <span>✨ Free Express Pan-India Delivery on orders over ₹999</span>
-        <span className="code">USE CODE: PRETTY10 FOR 10% OFF</span>
-      </div>
-
-      <header className="site-header">
-        <div className="header-inner">
-          {/* Brand */}
-          <Link className="brand" to="/">
-            <img className="brand-logo-img" src="/jp-store-logo.png" alt="JP Store Logo" />
-            <div className="brand-info">
-              <span className="brand-name">JP Store</span>
-              <span className="brand-tagline">Pretty Picks</span>
-            </div>
-          </Link>
-
-          {/* Desktop Nav */}
-          <ul className="nav-links">
-            <li>
-              <Link className={`nav-link ${loc.pathname === '/' ? 'active' : ''}`} to="/">
-                Home
-              </Link>
-            </li>
-            <li>
-              <Link className={`nav-link ${loc.pathname === '/shop' ? 'active' : ''}`} to="/shop">
-                Shop All
-              </Link>
-            </li>
-            <li>
-              <Link className="nav-link" to="/shop?category=Jewellery">
-                Jewellery
-              </Link>
-            </li>
-            <li>
-              <Link className="nav-link" to="/shop?category=Hair%20Accessories">
-                Hair Accessories
-              </Link>
-            </li>
-            <li>
-              <Link className={`nav-link ${loc.pathname === '/support' ? 'active' : ''}`} to="/support">
-                Help & Concierge
-              </Link>
-            </li>
-          </ul>
-
-          {/* Search Box */}
-          <div className="header-search">
-            <Search className="search-icon" size={17} />
-            <input
-              type="text"
-              value={term}
-              onChange={e => setTerm(e.target.value)}
-              onKeyDown={handleSearch}
-              placeholder="Search jewellery, hairpins, gifts..."
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="header-actions">
-            <Link className="neu-icon-btn" to="/wishlist" title="Wishlist">
-              <Heart size={18} />
-              {wishlist.length > 0 && <span className="neu-badge gold">{wishlist.length}</span>}
-            </Link>
-
-            <Link className="neu-icon-btn" to="/cart" title="Shopping Bag">
-              <ShoppingBag size={18} />
-              {cartCount > 0 && <span className="neu-badge">{cartCount}</span>}
-            </Link>
-
-            {user ? (
-              <>
-                <Link className="neu-icon-btn" to="/account" title="Account">
-                  <User size={18} />
-                </Link>
-                {user.role === 'admin' && (
-                  <Link className="neu-icon-btn" to="/admin" title="Admin Panel">
-                    <LayoutDashboard size={18} />
-                  </Link>
-                )}
-                <button className="neu-icon-btn" onClick={logout} title="Sign Out">
-                  <LogOut size={17} />
-                </button>
-              </>
-            ) : (
-              <Link className="btn-primary btn-sm" to="/login">
-                Sign In
-              </Link>
-            )}
-
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu size={22} />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile Navigation Drawer */}
-      {drawerOpen && (
-        <div className="mobile-drawer-backdrop" onClick={() => setDrawerOpen(false)}>
-          <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <div className="brand">
-                <img className="brand-logo-img" src="/jp-store-logo.png" alt="JP Store" />
-                <div className="brand-info">
-                  <span className="brand-name">JP Store</span>
-                  <span className="brand-tagline">Pretty Picks</span>
-                </div>
-              </div>
-              <button className="neu-icon-btn" onClick={() => setDrawerOpen(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <input
-                className="form-control"
-                placeholder="Search products..."
-                value={term}
-                onChange={e => setTerm(e.target.value)}
-                onKeyDown={handleSearch}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '32px' }}>
-              <Link className="nav-link" to="/" onClick={() => setDrawerOpen(false)}>Home</Link>
-              <Link className="nav-link" to="/shop" onClick={() => setDrawerOpen(false)}>Shop All</Link>
-              <Link className="nav-link" to="/shop?category=Jewellery" onClick={() => setDrawerOpen(false)}>Jewellery</Link>
-              <Link className="nav-link" to="/shop?category=Hair%20Accessories" onClick={() => setDrawerOpen(false)}>Hair Accessories</Link>
-              <Link className="nav-link" to="/shop?category=Luxury%20Gift%20Boxes" onClick={() => setDrawerOpen(false)}>Luxury Gift Boxes</Link>
-              <Link className="nav-link" to="/orders" onClick={() => setDrawerOpen(false)}>Track Orders</Link>
-              <Link className="nav-link" to="/support" onClick={() => setDrawerOpen(false)}>Help & Concierge</Link>
-            </div>
-
-            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
-              {user ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600 }}>Welcome, {user.name}</div>
-                  <Link className="btn-secondary btn-sm" to="/account" onClick={() => setDrawerOpen(false)}>My Account</Link>
-                  {user.role === 'admin' && (
-                    <Link className="btn-secondary btn-sm" to="/admin" onClick={() => setDrawerOpen(false)}>Admin Panel</Link>
-                  )}
-                  <button className="btn-primary btn-sm" onClick={() => { logout(); setDrawerOpen(false); }}>Sign Out</button>
-                </div>
-              ) : (
-                <Link className="btn-primary btn-block" to="/login" onClick={() => setDrawerOpen(false)}>
-                  Sign In / Register
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ==========================================================================
-// PRODUCT CARD COMPONENT
-// ==========================================================================
-function ProductCard({ product }) {
-  const { addToCart, toggleWishlist, isWishlisted } = useStore();
-  const wish = isWishlisted(product.id);
-
-  const finalPrice = product.discount > 0
-    ? product.price * (1 - product.discount / 100)
-    : product.price;
-
-  return (
-    <div className="product-card">
-      <div className="product-card-img-wrap">
-        <Link to={'/product/' + product.id} style={{ display: 'contents' }}>
-          <img src={sample(product)} alt={product.name} loading="lazy" />
-        </Link>
-        {product.discount > 0 && (
-          <span className="product-discount-tag">-{product.discount}% OFF</span>
-        )}
-        <button
-          className={`product-wishlist-btn ${wish ? 'active' : ''}`}
-          onClick={() => toggleWishlist(product.id)}
-          title={wish ? 'Remove from wishlist' : 'Save to wishlist'}
-        >
-          <Heart size={16} fill={wish ? 'currentColor' : 'none'} />
-        </button>
-      </div>
-
-      <span className="product-category-label">{product.category || 'Collection'}</span>
-      <h3 className="product-card-title">
-        <Link to={'/product/' + product.id}>{product.name}</Link>
-      </h3>
-
-      <div className="product-rating-row">
-        <span className="stars-gold">
-          <Star size={13} fill="currentColor" /> {Number(product.rating || 4.8).toFixed(1)}
-        </span>
-        <span className="rating-count">({Math.floor(Number(product.id) * 7 + 12)} reviews)</span>
-      </div>
-
-      <div className="product-price-row">
-        <span className="current-price">₹{Math.round(finalPrice)}</span>
-        {product.discount > 0 && (
-          <span className="original-price">₹{product.price}</span>
-        )}
-      </div>
-
-      <button className="product-add-cart-btn" onClick={() => addToCart(product.id, 1)}>
-        <ShoppingBag size={15} /> Add to Cart
-      </button>
-    </div>
-  );
-}
-
-// ==========================================================================
-// FOOTER COMPONENT
-// ==========================================================================
-function Footer() {
-  const [email, setEmail] = useState('');
-
-  const handleSubscribe = e => {
-    e.preventDefault();
-    if (!email || !email.includes('@')) {
-      return alertWarning('Invalid Email', 'Please enter a valid email address.');
-    }
-    alertSuccess('Subscribed!', 'Welcome to the Pretty Picks VIP circle. Enjoy 10% off your first order with code PRETTY10.');
-    setEmail('');
-  };
-
-  return (
-    <footer className="site-footer">
-      <div className="footer-inner">
-        <div className="footer-brand">
-          <div className="brand" style={{ marginBottom: '14px' }}>
-            <img className="brand-logo-img" src="/jp-store-logo.png" alt="JP Store" />
-            <div className="brand-info">
-              <span className="brand-name">JP Store</span>
-              <span className="brand-tagline">Pretty Picks</span>
-            </div>
-          </div>
-          <p className="footer-desc">
-            Discover timeless, handcrafted jewellery and everyday statement accessories.
-            Thoughtfully curated to bring a spark of everyday luxury into your life.
-          </p>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <span className="neu-icon-btn"><ShieldCheck size={18} color="var(--primary)" /></span>
-            <span className="neu-icon-btn"><Truck size={18} color="var(--primary)" /></span>
-            <span className="neu-icon-btn"><CreditCard size={18} color="var(--accent)" /></span>
-          </div>
-        </div>
-
-        <div>
-          <h4 className="footer-col-title">Collections</h4>
-          <ul className="footer-links">
-            <li><Link to="/shop?category=Jewellery">Jewellery & Pendants</Link></li>
-            <li><Link to="/shop?category=Hair%20Accessories">Hair Accessories</Link></li>
-            <li><Link to="/shop?category=Luxury%20Gift%20Boxes">Luxury Keepsake Boxes</Link></li>
-            <li><Link to="/shop?category=Stationery">Aesthetic Stationery</Link></li>
-            <li><Link to="/shop">All New Arrivals</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="footer-col-title">Customer Care</h4>
-          <ul className="footer-links">
-            <li><Link to="/orders">Track Your Order</Link></li>
-            <li><Link to="/support">Help & FAQ Center</Link></li>
-            <li><Link to="/support">14-Day Return Policy</Link></li>
-            <li><Link to="/support">Jewellery Care Guide</Link></li>
-            <li><Link to="/support">Contact Concierge</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="footer-col-title">Join Pretty Picks Club</h4>
-          <p className="footer-desc">
-            Sign up for secret promotions, limited releases, and style inspirations.
-          </p>
-          <form className="newsletter-form" onSubmit={handleSubscribe}>
-            <input
-              type="email"
-              placeholder="Enter your email..."
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
-            <button className="btn-primary btn-sm" type="submit">Join</button>
-          </form>
-        </div>
-      </div>
-
-      <div className="footer-bottom-bar">
-        <div>© {new Date().getFullYear()} JP Store – Pretty Picks. All rights reserved. Handcrafted with love.</div>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <Link to="/support">Terms of Service</Link>
-          <Link to="/support">Privacy Policy</Link>
-          <Link to="/support">Shipping & Returns</Link>
-        </div>
-      </div>
-    </footer>
-  );
-}
 
 // ==========================================================================
 // HOME PAGE (HERO, TRUST BADGES, 4 SECTIONS)
@@ -957,6 +458,7 @@ function Shop() {
 // ==========================================================================
 function ProductDetails() {
   const { id } = useParams();
+  const nav = useNavigate();  // Bug 5 fix: SPA navigation for Buy Now
   const { products, addToCart, toggleWishlist, isWishlisted } = useStore();
   const [product, setProduct] = useState(null);
   const [activeTab, setActiveTab] = useState('details');
@@ -1097,7 +599,7 @@ function ProductDetails() {
                 className="btn-secondary"
                 onClick={() => {
                   addToCart(product.id, quantity);
-                  window.location.href = '/checkout';
+                  nav('/checkout');  // Bug 5 fix: SPA nav — no full page reload
                 }}
               >
                 Buy Now
@@ -1645,7 +1147,7 @@ function Checkout() {
           const d = res.data;
           setAddress(prev => ({
             ...prev,
-            street: d.street || prev.street,
+            street: d.street || d.area || prev.street,  // Bug 6 fix: geocode returns area not street
             city: d.city || prev.city,
             state: d.state || prev.state,
             pincode: d.pincode || prev.pincode
@@ -2667,12 +2169,17 @@ function VerifyPage() {
   const search = new URLSearchParams(loc.search);
   const token = search.get('token');
   const [msg, setMsg] = useState('Verifying your email...');
+  // Bug 7 fix: track success/failure to render appropriate icon
+  const [verified, setVerified] = useState(null); // null = loading, true = ok, false = fail
 
   useEffect(() => {
     if (token) {
       api.get('/auth/verify', { params: { token } })
-        .then(r => setMsg(r.data.message || 'Email verified successfully!'))
-        .catch(e => setMsg(e.response?.data?.error || 'Verification link expired'));
+        .then(r => { setMsg(r.data.message || 'Email verified successfully!'); setVerified(true); })
+        .catch(e => { setMsg(e.response?.data?.error || 'Verification link expired'); setVerified(false); });
+    } else {
+      setMsg('No verification token provided.');
+      setVerified(false);
     }
   }, [token]);
 
@@ -2681,7 +2188,10 @@ function VerifyPage() {
       <Header />
       <div style={{ maxWidth: '500px', margin: '80px auto', textAlign: 'center', padding: '0 24px' }}>
         <div className="neu-card" style={{ padding: '40px 24px' }}>
-          <CheckCircle2 size={48} color="var(--success)" style={{ margin: '0 auto 16px' }} />
+          {/* Bug 7 fix: show correct icon based on verification result */}
+          {verified === true && <CheckCircle2 size={48} color="var(--success)" style={{ margin: '0 auto 16px' }} />}
+          {verified === false && <AlertCircle size={48} color="var(--error)" style={{ margin: '0 auto 16px' }} />}
+          {verified === null && <Loader2 size={48} className="animate-spin" color="var(--primary)" style={{ margin: '0 auto 16px' }} />}
           <h2 style={{ marginBottom: '12px' }}>Verification Status</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>{msg}</p>
           <Link className="btn-primary btn-sm" to="/">Return to Home</Link>
@@ -3004,6 +2514,7 @@ function Admin() {
                     <th>Email</th>
                     <th>Role</th>
                     <th>Status</th>
+                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3017,6 +2528,28 @@ function Admin() {
                         <span className={`status-pill ${c.status === 'blocked' ? 'error' : 'success'}`}>
                           {c.status || 'active'}
                         </span>
+                      </td>
+                      {/* Bug 8 fix: Block / Unblock action button */}
+                      <td>
+                        <button
+                          className={`btn-sm ${c.status === 'blocked' ? 'btn-primary' : 'btn-danger'}`}
+                          style={{ padding: '4px 12px', fontSize: '12px', borderRadius: '6px', cursor: 'pointer',
+                            background: c.status === 'blocked' ? 'var(--success)' : 'var(--error)',
+                            color: '#fff', border: 'none' }}
+                          onClick={async () => {
+                            const newStatus = c.status === 'blocked' ? 'active' : 'blocked';
+                            const action = newStatus === 'blocked' ? 'block' : 'unblock';
+                            if (!window.confirm(`Are you sure you want to ${action} ${c.name}?`)) return;
+                            try {
+                              await api.put(`/admin/customers/${c.id}/status`, { status: newStatus });
+                              setCustomers(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x));
+                            } catch {
+                              toastError(`Could not ${action} customer.`);
+                            }
+                          }}
+                        >
+                          {c.status === 'blocked' ? 'Unblock' : 'Block'}
+                        </button>
                       </td>
                     </tr>
                   ))}

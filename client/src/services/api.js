@@ -8,4 +8,17 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      if (localStorage.getItem('jp_token')) {
+        localStorage.removeItem('jp_token');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
+

@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const BASE_URL = 'http://localhost:4000';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 function request(method, pathName, headers = {}, body = null) {
   return new Promise((resolve, reject) => {

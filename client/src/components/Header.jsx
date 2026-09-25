@@ -43,18 +43,28 @@ function Header() {
               </Link>
             </li>
             <li>
-              <Link className={`nav-link ${loc.pathname === '/shop' ? 'active' : ''}`} to="/shop">
+              <Link className={`nav-link ${loc.pathname === '/shop' && !loc.search ? 'active' : ''}`} to="/shop">
                 Shop All
               </Link>
             </li>
             <li>
-              <Link className="nav-link" to="/shop?category=Jewellery">
+              <Link className={`nav-link ${loc.search.includes('Jewellery') ? 'active' : ''}`} to="/shop?category=Jewellery">
                 Jewellery
               </Link>
             </li>
             <li>
-              <Link className="nav-link" to="/shop?category=Hair%20Accessories">
+              <Link className={`nav-link ${loc.search.includes('Hair') ? 'active' : ''}`} to="/shop?category=Hair%20Accessories">
                 Hair Accessories
+              </Link>
+            </li>
+            <li>
+              <Link className={`nav-link ${loc.search.includes('Gift') ? 'active' : ''}`} to="/shop?category=Luxury%20Gift%20Boxes">
+                Gifts
+              </Link>
+            </li>
+            <li>
+              <Link className={`nav-link ${loc.pathname === '/orders' ? 'active' : ''}`} to="/orders">
+                Track Order
               </Link>
             </li>
             <li>
@@ -66,14 +76,36 @@ function Header() {
 
           {/* Search Box */}
           <div className="header-search">
-            <Search className="search-icon" size={17} />
+            <button
+              type="button"
+              className="search-submit-btn"
+              onClick={() => {
+                if (term.trim()) {
+                  nav('/shop?search=' + encodeURIComponent(term.trim()));
+                }
+              }}
+              title="Search"
+            >
+              <Search className="search-icon" size={16} />
+            </button>
             <input
               type="text"
               value={term}
               onChange={e => setTerm(e.target.value)}
               onKeyDown={handleSearch}
               placeholder="Search jewellery, hairpins, gifts..."
+              aria-label="Search products"
             />
+            {term && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setTerm('')}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           {/* Actions */}

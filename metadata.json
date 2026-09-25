@@ -1,0 +1,6 @@
+{
+  "name": "JP Store",
+  "description": "Pretty Picks | Jewellery & Timeless Accessories boutique store with curated collections, cart, orders, and management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

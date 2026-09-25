@@ -22,16 +22,23 @@ function StoreProvider({ children }) {
     }
   });
   const [wishlist, setWishlist] = useState([]);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const loadUser = async () => {
-    if (localStorage.getItem('jp_token')) {
+    const token = localStorage.getItem('jp_token');
+    if (token) {
       try {
         const r = await api.get('/me');
         setUser(r.data);
-      } catch {
+      } catch (err) {
         localStorage.removeItem('jp_token');
         setUser(null);
+      } finally {
+        setAuthLoading(false);
       }
+    } else {
+      setUser(null);
+      setAuthLoading(false);
     }
   };
 
@@ -44,12 +51,13 @@ function StoreProvider({ children }) {
       setProducts(pRes.data);
       setCategories(cRes.data);
     } catch (e) {
-      console.error('Catalog load error:', e);
+      console.warn('Catalog load error:', e.message);
     }
   };
 
   const loadWishlist = async () => {
-    if (!localStorage.getItem('jp_token')) {
+    const token = localStorage.getItem('jp_token');
+    if (!token || !user) {
       setWishlist([]);
       return;
     }
@@ -57,7 +65,11 @@ function StoreProvider({ children }) {
       const r = await api.get('/wishlist');
       setWishlist(r.data.map(p => p.id));
     } catch (e) {
-      console.error('Wishlist load error:', e);
+      if (e.response?.status === 401) {
+        localStorage.removeItem('jp_token');
+        setUser(null);
+        setWishlist([]);
+      }
     }
   };
 
@@ -165,7 +177,7 @@ function StoreProvider({ children }) {
   return (
     <StoreContext.Provider
       value={{
-        user, setUser, login, register, logout, loadUser,
+        user, setUser, authLoading, login, register, logout, loadUser,
         products, categories, refreshCatalog,
         cart, cartCount, addToCart, updateCartQty, removeFromCart, clearCart,
         wishlist, toggleWishlist, isWishlisted

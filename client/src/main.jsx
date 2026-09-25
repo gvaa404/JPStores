@@ -7,7 +7,7 @@ import {
   CheckCircle2, AlertCircle, Mail, ShieldCheck, MapPin, Navigation,
   Home as HomeIcon, Briefcase, Phone, Check, Loader2, Star, SlidersHorizontal,
   ChevronDown, ChevronUp, ChevronRight, ArrowRight, Sparkles, RefreshCw,
-  HelpCircle, Send, MessageSquare, Filter, Clock, Box, Share2
+  HelpCircle, Send, MessageSquare, Filter, Clock, Box, Share2, PackageCheck
 } from 'lucide-react';
 import './styles.css';
 import {
@@ -19,12 +19,33 @@ import Header from './components/Header';
 import ProductCard from './components/ProductCard';
 import { StoreProvider, useStore } from './context/StoreContext';
 
-// Image helper — Bug 4 fix: use relative path (Vite proxies /uploads → backend)
+// Image helper — Returns product upload or curated high-res boutique image
 export const sample = p => {
-  if (!p?.image) return '/jp-store-logo.png';
-  if (p.image.startsWith('http://') || p.image.startsWith('https://')) return p.image;
-  if (p.image.startsWith('/uploads')) return p.image;   // served via Vite proxy
-  return p.image;
+  if (p?.image && (p.image.startsWith('http://') || p.image.startsWith('https://') || p.image.startsWith('/uploads'))) {
+    return p.image;
+  }
+  const name = (p?.name || '').toLowerCase();
+  const cat = (p?.category || '').toLowerCase();
+
+  if (name.includes('journal') || name.includes('planner') || name.includes('notebook') || cat.includes('stationery')) {
+    return 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80';
+  }
+  if (name.includes('gift') || name.includes('box') || cat.includes('gift')) {
+    return 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=800&q=80';
+  }
+  if (name.includes('pen') || name.includes('writing') || cat.includes('pen')) {
+    return 'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?auto=format&fit=crop&w=800&q=80';
+  }
+  if (name.includes('sticker') || cat.includes('sticker')) {
+    return 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&w=800&q=80';
+  }
+  if (name.includes('jewel') || name.includes('earring') || name.includes('necklace') || name.includes('ring') || name.includes('pendant') || name.includes('pearl') || cat.includes('jewel')) {
+    return 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80';
+  }
+  if (name.includes('hair') || name.includes('pin') || name.includes('clip') || name.includes('bow') || name.includes('scrunchie') || cat.includes('hair')) {
+    return 'https://images.unsplash.com/photo-1576871337622-98d48d1cf531?auto=format&fit=crop&w=800&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80';
 };
 
 // ==========================================================================
@@ -251,6 +272,7 @@ function Shop() {
   const [minRating, setMinRating] = useState(0);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortBy, setSortBy] = useState('featured');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Filtered & Sorted products
   const filteredProducts = useMemo(() => {
@@ -291,115 +313,164 @@ function Shop() {
     nav('/shop?' + params.toString());
   };
 
+  const handleClearSearch = () => {
+    const params = new URLSearchParams(loc.search);
+    params.delete('search');
+    nav('/shop?' + params.toString());
+  };
+
+  const activeFiltersCount = (selectedCategory ? 1 : 0) + (searchWord ? 1 : 0) + (maxPrice < 2500 ? 1 : 0) + (minRating > 0 ? 1 : 0) + (inStockOnly ? 1 : 0);
+
+  const filterSidebarContent = (
+    <>
+      <div className="filter-group">
+        <h3 className="filter-title">
+          <span>Categories</span>
+          {selectedCategory && (
+            <button
+              style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}
+              onClick={() => handleCategorySelect('')}
+            >
+              Clear
+            </button>
+          )}
+        </h3>
+        <div className="category-pills">
+          <button
+            className={`category-pill ${!selectedCategory ? 'active' : ''}`}
+            onClick={() => handleCategorySelect('')}
+          >
+            All
+          </button>
+          {categories.map(c => (
+            <button
+              key={c}
+              className={`category-pill ${selectedCategory === c ? 'active' : ''}`}
+              onClick={() => handleCategorySelect(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-group">
+        <h3 className="filter-title">Price Range</h3>
+        <div className="price-slider-wrap">
+          <input
+            type="range"
+            min="100"
+            max="3000"
+            step="50"
+            value={maxPrice}
+            onChange={e => setMaxPrice(Number(e.target.value))}
+          />
+          <div className="price-range-labels">
+            <span>₹100</span>
+            <span>Max: ₹{maxPrice}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="filter-group">
+        <h3 className="filter-title">Customer Rating</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { label: 'All Ratings', val: 0 },
+            { label: '4.5★ & above', val: 4.5 },
+            { label: '4.0★ & above', val: 4.0 }
+          ].map(r => (
+            <label key={r.val} className="filter-checkbox-item">
+              <input
+                type="radio"
+                name="rating"
+                checked={minRating === r.val}
+                onChange={() => setMinRating(r.val)}
+              />
+              <span>{r.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="filter-group">
+        <h3 className="filter-title">Availability</h3>
+        <label className="filter-checkbox-item">
+          <input
+            type="checkbox"
+            checked={inStockOnly}
+            onChange={e => setInStockOnly(e.target.checked)}
+          />
+          <span>In Stock Only</span>
+        </label>
+      </div>
+
+      <button
+        className="btn-secondary btn-block btn-sm"
+        onClick={() => {
+          setMaxPrice(3000);
+          setMinRating(0);
+          setInStockOnly(false);
+          handleCategorySelect('');
+        }}
+      >
+        Reset All Filters
+      </button>
+    </>
+  );
+
   return (
     <>
       <Header />
 
       <main className="shop-layout">
-        {/* Sidebar Filters */}
+        {/* Sidebar Filters Desktop */}
         <aside className="filter-sidebar">
-          <div className="filter-group">
-            <h3 className="filter-title">
-              <span>Categories</span>
-              {selectedCategory && (
-                <button
-                  style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600 }}
-                  onClick={() => handleCategorySelect('')}
-                >
-                  Clear
-                </button>
-              )}
-            </h3>
-            <div className="category-pills">
-              <button
-                className={`category-pill ${!selectedCategory ? 'active' : ''}`}
-                onClick={() => handleCategorySelect('')}
-              >
-                All
-              </button>
-              {categories.map(c => (
-                <button
-                  key={c}
-                  className={`category-pill ${selectedCategory === c ? 'active' : ''}`}
-                  onClick={() => handleCategorySelect(c)}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <h3 className="filter-title">Price Range</h3>
-            <div className="price-slider-wrap">
-              <input
-                type="range"
-                min="100"
-                max="3000"
-                step="50"
-                value={maxPrice}
-                onChange={e => setMaxPrice(Number(e.target.value))}
-              />
-              <div className="price-range-labels">
-                <span>₹100</span>
-                <span>Max: ₹{maxPrice}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <h3 className="filter-title">Customer Rating</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[
-                { label: 'All Ratings', val: 0 },
-                { label: '4.5★ & above', val: 4.5 },
-                { label: '4.0★ & above', val: 4.0 }
-              ].map(r => (
-                <label key={r.val} className="filter-checkbox-item">
-                  <input
-                    type="radio"
-                    name="rating"
-                    checked={minRating === r.val}
-                    onChange={() => setMinRating(r.val)}
-                  />
-                  <span>{r.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <h3 className="filter-title">Availability</h3>
-            <label className="filter-checkbox-item">
-              <input
-                type="checkbox"
-                checked={inStockOnly}
-                onChange={e => setInStockOnly(e.target.checked)}
-              />
-              <span>In Stock Only</span>
-            </label>
-          </div>
-
-          <button
-            className="btn-secondary btn-block btn-sm"
-            onClick={() => {
-              setMaxPrice(3000);
-              setMinRating(0);
-              setInStockOnly(false);
-              handleCategorySelect('');
-            }}
-          >
-            Reset All Filters
-          </button>
+          {filterSidebarContent}
         </aside>
+
+        {/* Mobile Filter Drawer */}
+        {mobileFilterOpen && (
+          <div className="mobile-filter-backdrop" onClick={() => setMobileFilterOpen(false)}>
+            <div className="mobile-filter-drawer" onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px' }}>Filter Catalog</h3>
+                <button
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px' }}
+                  onClick={() => setMobileFilterOpen(false)}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              {filterSidebarContent}
+              <button
+                className="btn-primary btn-block"
+                style={{ marginTop: '20px' }}
+                onClick={() => setMobileFilterOpen(false)}
+              >
+                Apply & View ({filteredProducts.length}) Results
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Products Column */}
         <section>
           <div className="shop-toolbar">
-            <div className="shop-results-count">
-              Showing <strong>{filteredProducts.length}</strong> items
-              {selectedCategory && <span> in <strong>{selectedCategory}</strong></span>}
-              {searchWord && <span> matching "<strong>{searchWord}</strong>"</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="mobile-filter-btn"
+                onClick={() => setMobileFilterOpen(true)}
+              >
+                <Filter size={15} /> Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}
+              </button>
+
+              <div className="shop-results-count">
+                Showing <strong>{filteredProducts.length}</strong> items
+                {selectedCategory && <span> in <strong>{selectedCategory}</strong></span>}
+                {searchWord && <span> matching "<strong>{searchWord}</strong>"</span>}
+              </div>
             </div>
 
             <div className="shop-sort-wrap">
@@ -418,6 +489,65 @@ function Shop() {
               </select>
             </div>
           </div>
+
+          {/* Active Filter Tags */}
+          {activeFiltersCount > 0 && (
+            <div className="active-filters-strip">
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '4px' }}>Active filters:</span>
+              {selectedCategory && (
+                <span className="active-filter-tag">
+                  Category: {selectedCategory}
+                  <button onClick={() => handleCategorySelect('')} title="Remove category filter">
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+              {searchWord && (
+                <span className="active-filter-tag">
+                  Search: "{searchWord}"
+                  <button onClick={handleClearSearch} title="Clear search">
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+              {maxPrice < 2500 && (
+                <span className="active-filter-tag">
+                  Under ₹{maxPrice}
+                  <button onClick={() => setMaxPrice(3000)} title="Reset price limit">
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+              {minRating > 0 && (
+                <span className="active-filter-tag">
+                  ★ {minRating}+
+                  <button onClick={() => setMinRating(0)} title="Reset rating">
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+              {inStockOnly && (
+                <span className="active-filter-tag">
+                  In Stock Only
+                  <button onClick={() => setInStockOnly(false)} title="Reset stock filter">
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+              <button
+                style={{ fontSize: '12px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: '4px 8px' }}
+                onClick={() => {
+                  setMaxPrice(3000);
+                  setMinRating(0);
+                  setInStockOnly(false);
+                  handleCategorySelect('');
+                  handleClearSearch();
+                }}
+              >
+                Clear All
+              </button>
+            </div>
+          )}
 
           {filteredProducts.length === 0 ? (
             <div className="neu-card" style={{ textAlign: 'center', padding: '60px 24px' }}>
@@ -459,10 +589,11 @@ function Shop() {
 function ProductDetails() {
   const { id } = useParams();
   const nav = useNavigate();  // Bug 5 fix: SPA navigation for Buy Now
-  const { products, addToCart, toggleWishlist, isWishlisted } = useStore();
+  const { products, addToCart, toggleWishlist, isWishlisted, user } = useStore();
   const [product, setProduct] = useState(null);
   const [activeTab, setActiveTab] = useState('details');
   const [quantity, setQuantity] = useState(1);
+  const [selectedImgIndex, setSelectedImgIndex] = useState(0);
   const [userReview, setUserReview] = useState({ rating: 5, comment: '' });
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
@@ -470,10 +601,37 @@ function ProductDetails() {
     const found = products.find(p => String(p.id) === String(id));
     if (found) {
       setProduct(found);
+      setSelectedImgIndex(0);
     } else {
-      api.get('/products/' + id).then(r => setProduct(r.data)).catch(console.error);
+      api.get('/products/' + id).then(r => {
+        setProduct(r.data);
+        setSelectedImgIndex(0);
+      }).catch(() => {});
     }
   }, [id, products]);
+
+  const galleryImages = useMemo(() => {
+    if (!product) return [];
+    const main = sample(product);
+    const cat = (product.category || '').toLowerCase();
+    return [
+      main,
+      cat.includes('stationery')
+        ? 'https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=600&q=80'
+        : 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=600&q=80',
+      cat.includes('hair')
+        ? 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80'
+        : 'https://images.unsplash.com/photo-1611591475825-78322c3666d6?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80'
+    ];
+  }, [product]);
+
+  const relatedProducts = useMemo(() => {
+    if (!product) return [];
+    return products
+      .filter(p => p.id !== product.id && (p.category === product.category || (p.rating || 0) >= 4.7))
+      .slice(0, 4);
+  }, [products, product]);
 
   if (!product) {
     return (
@@ -492,8 +650,20 @@ function ProductDetails() {
   const finalPrice = product.discount > 0 ? product.price * (1 - product.discount / 100) : product.price;
   const savings = product.discount > 0 ? product.price - finalPrice : 0;
 
+  const handleShare = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+      toastSuccess('Product link copied to clipboard! ✨');
+    } else {
+      toastSuccess('Link ready to share!');
+    }
+  };
+
   const handleReviewSubmit = async e => {
     e.preventDefault();
+    if (!user) {
+      return alertInfo('Sign In Required', 'Please sign in to submit a review for this piece.');
+    }
     if (!userReview.comment.trim()) {
       return alertWarning('Missing Feedback', 'Please write a brief comment sharing your experience.');
     }
@@ -501,9 +671,12 @@ function ProductDetails() {
       await api.post('/reviews/' + product.id, userReview);
       setReviewSubmitted(true);
       alertSuccess('Review Submitted', 'Thank you for sharing your sparkle with us!');
-    } catch {
-      setReviewSubmitted(true);
-      alertSuccess('Review Submitted', 'Thank you for sharing your sparkle with us!');
+    } catch (err) {
+      if (err.response?.status === 401) {
+        alertInfo('Sign In Required', 'Please sign in to submit your review.');
+      } else {
+        alertError('Review Submission', err.response?.data?.error || 'Could not submit review at this time.');
+      }
     }
   };
 
@@ -528,18 +701,24 @@ function ProductDetails() {
           {/* Gallery */}
           <div className="product-gallery">
             <div className="gallery-main-frame">
-              <img src={sample(product)} alt={product.name} />
+              <img
+                src={galleryImages[selectedImgIndex] || sample(product)}
+                alt={product.name}
+                style={{ transition: 'all 0.3s ease' }}
+              />
             </div>
             <div className="gallery-thumbs">
-              <div className="gallery-thumb-btn active">
-                <img src={sample(product)} alt="Thumbnail 1" />
-              </div>
-              <div className="gallery-thumb-btn">
-                <img src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=400&q=80" alt="Thumbnail 2" />
-              </div>
-              <div className="gallery-thumb-btn">
-                <img src="https://images.unsplash.com/photo-1611591475825-78322c3666d6?auto=format&fit=crop&w=400&q=80" alt="Thumbnail 3" />
-              </div>
+              {galleryImages.map((imgUrl, idx) => (
+                <button
+                  type="button"
+                  key={idx}
+                  className={`gallery-thumb-btn ${selectedImgIndex === idx ? 'active' : ''}`}
+                  onClick={() => setSelectedImgIndex(idx)}
+                  title={`View image ${idx + 1}`}
+                >
+                  <img src={imgUrl} alt={`${product.name} angle ${idx + 1}`} />
+                </button>
+              ))}
             </div>
           </div>
 
@@ -607,10 +786,19 @@ function ProductDetails() {
               <button
                 className={`neu-icon-btn ${wish ? 'active' : ''}`}
                 onClick={() => toggleWishlist(product.id)}
-                title="Wishlist"
+                title={wish ? 'Remove from wishlist' : 'Save to wishlist'}
                 style={{ width: '48px', height: '48px' }}
               >
                 <Heart size={20} fill={wish ? 'currentColor' : 'none'} color={wish ? 'var(--primary)' : 'currentColor'} />
+              </button>
+              <button
+                type="button"
+                className="neu-icon-btn"
+                onClick={handleShare}
+                title="Share product link"
+                style={{ width: '48px', height: '48px' }}
+              >
+                <Share2 size={18} />
               </button>
             </div>
 
@@ -794,6 +982,26 @@ function ProductDetails() {
             </div>
           )}
         </div>
+
+        {/* You May Also Adore */}
+        {relatedProducts.length > 0 && (
+          <section style={{ marginTop: '56px', borderTop: '1px solid var(--border-light)', paddingTop: '40px' }}>
+            <div className="section-header">
+              <div>
+                <div className="section-eyebrow">COMPLETE YOUR LOOK</div>
+                <h2 className="section-title">You May Also Adore</h2>
+              </div>
+              <Link className="section-view-all" to={`/shop?category=${encodeURIComponent(product.category)}`}>
+                More in {product.category} <ChevronRight size={16} />
+              </Link>
+            </div>
+            <div className="products-grid">
+              {relatedProducts.map(p => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       <Footer />
@@ -805,7 +1013,7 @@ function ProductDetails() {
 // CART PAGE
 // ==========================================================================
 function Cart() {
-  const { cart, products, updateCartQty, removeFromCart, clearCart } = useStore();
+  const { cart, products, updateCartQty, removeFromCart, clearCart, toggleWishlist, isWishlisted } = useStore();
   const [couponCode, setCouponCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState(0);
 
@@ -830,14 +1038,27 @@ function Cart() {
   const shippingFee = subtotal >= 999 || subtotal === 0 ? 0 : 49;
   const grandTotal = Math.max(0, subtotal - couponSavings + shippingFee);
 
-  const applyCoupon = () => {
-    if (couponCode.trim().toUpperCase() === 'PRETTY10') {
+  const applyCouponCode = code => {
+    const clean = (code || couponCode).trim().toUpperCase();
+    if (clean === 'PRETTY10') {
       setDiscountPercent(10);
+      setCouponCode('PRETTY10');
       alertSuccess('Coupon Applied! ✨', 'Enjoy 10% instant discount on your order.');
     } else {
       alertWarning('Invalid Coupon', 'Code not recognised. Try using "PRETTY10".');
     }
   };
+
+  const handleMoveToWishlist = (productId) => {
+    if (!isWishlisted(productId)) {
+      toggleWishlist(productId);
+    }
+    removeFromCart(productId);
+    toastSuccess('Moved to your wishlist! 💖');
+  };
+
+  const freeShippingThreshold = 999;
+  const shippingProgress = Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
 
   return (
     <>
@@ -850,13 +1071,33 @@ function Cart() {
             <h2 style={{ fontSize: '24px' }}>Shopping Bag ({cart.length})</h2>
             {cart.length > 0 && (
               <button
-                style={{ fontSize: '13px', color: 'var(--error)', fontWeight: 600 }}
+                style={{ fontSize: '13px', color: 'var(--error)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                 onClick={() => confirmDialog('Empty Bag?', 'Remove all items from your bag?').then(r => r.isConfirmed && clearCart())}
               >
                 Clear Bag
               </button>
             )}
           </div>
+
+          {/* Free Shipping Progress Meter */}
+          {subtotal > 0 && (
+            <div className="delivery-progress-box">
+              <div className="delivery-progress-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                  <Truck size={16} color="var(--primary)" />
+                  {subtotal >= freeShippingThreshold ? (
+                    <span style={{ color: 'var(--success)' }}>🎉 You have qualified for FREE Shipping!</span>
+                  ) : (
+                    <span>Add <strong>₹{Math.round(freeShippingThreshold - subtotal)}</strong> more for <strong>FREE Shipping</strong></span>
+                  )}
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary-dark)' }}>{shippingProgress}%</span>
+              </div>
+              <div className="delivery-progress-track">
+                <div className="delivery-progress-fill" style={{ width: `${shippingProgress}%` }} />
+              </div>
+            </div>
+          )}
 
           {cartDetails.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 0' }}>
@@ -893,14 +1134,23 @@ function Cart() {
                       <button className="qty-btn" onClick={() => updateCartQty(item.product_id, item.quantity + 1)}>+</button>
                     </div>
 
-                    <div style={{ textAlign: 'right', minWidth: '80px' }}>
+                    <div style={{ textAlign: 'right', minWidth: '95px' }}>
                       <div style={{ fontSize: '16px', fontWeight: 700 }}>₹{Math.round(lineTotal)}</div>
-                      <button
-                        style={{ fontSize: '12px', color: 'var(--error)', marginTop: '4px' }}
-                        onClick={() => removeFromCart(item.product_id)}
-                      >
-                        Remove
-                      </button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', alignItems: 'flex-end' }}>
+                        <button
+                          style={{ fontSize: '12px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          onClick={() => handleMoveToWishlist(item.product_id)}
+                          title="Save to Wishlist"
+                        >
+                          Move to Wishlist
+                        </button>
+                        <button
+                          style={{ fontSize: '12px', color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          onClick={() => removeFromCart(item.product_id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -930,12 +1180,6 @@ function Cart() {
             <span>{shippingFee === 0 ? <strong style={{ color: 'var(--success)' }}>FREE</strong> : `₹${shippingFee}`}</span>
           </div>
 
-          {subtotal < 999 && subtotal > 0 && (
-            <div style={{ fontSize: '12px', color: 'var(--primary)', marginBottom: '14px' }}>
-              💡 Add items worth ₹{Math.round(999 - subtotal)} more for <strong>FREE Delivery</strong>!
-            </div>
-          )}
-
           <div className="coupon-box">
             <input
               type="text"
@@ -943,7 +1187,19 @@ function Cart() {
               value={couponCode}
               onChange={e => setCouponCode(e.target.value)}
             />
-            <button className="btn-secondary btn-sm" onClick={applyCoupon}>Apply</button>
+            <button className="btn-secondary btn-sm" onClick={() => applyCouponCode()}>Apply</button>
+          </div>
+
+          {/* Quick coupon chips */}
+          <div className="quick-coupons-row">
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Offers:</span>
+            <button
+              type="button"
+              className={`quick-coupon-chip ${discountPercent === 10 ? 'applied' : ''}`}
+              onClick={() => applyCouponCode('PRETTY10')}
+            >
+              {discountPercent === 10 ? '✓ PRETTY10 APPLIED' : '🏷️ PRETTY10 (10% OFF)'}
+            </button>
           </div>
 
           <div className="summary-row total">
@@ -1101,7 +1357,7 @@ function RazorpayCheckoutModal({ isOpen, onClose, orderData, onPaymentSuccess, o
 }
 
 function Checkout() {
-  const { cart, products, user, clearCart } = useStore();
+  const { cart, products, user, clearCart, authLoading } = useStore();
   const nav = useNavigate();
 
   const [address, setAddress] = useState({
@@ -1118,6 +1374,16 @@ function Checkout() {
   const [locating, setLocating] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [orderSession, setOrderSession] = useState(null);
+
+  useEffect(() => {
+    if (user) {
+      setAddress(prev => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        phone: prev.phone || user.phone || ''
+      }));
+    }
+  }, [user]);
 
   // Cart total calculations
   const cartDetails = useMemo(() => {
@@ -1254,6 +1520,41 @@ function Checkout() {
     setModalOpen(false);
     alertError('Payment Failed', 'The payment could not be processed. Please try again with success@razorpay.');
   };
+
+  if (authLoading) {
+    return (
+      <>
+        <Header />
+        <div style={{ textAlign: 'center', padding: '100px 24px' }}>
+          <Loader2 className="animate-spin" size={36} color="var(--primary)" style={{ margin: '0 auto 12px' }} />
+          <p>Verifying secure checkout session...</p>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <Header />
+        <main style={{ maxWidth: '600px', margin: '60px auto', padding: '0 24px', textAlign: 'center' }}>
+          <div className="neu-card" style={{ padding: '48px 32px' }}>
+            <User size={48} color="var(--primary)" style={{ margin: '0 auto 16px' }} />
+            <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>Sign in to Checkout</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Please sign in or create an account to proceed with your delivery details and secure payment.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <Link className="btn-primary" to="/login?redirect=/checkout">Sign In</Link>
+              <Link className="btn-secondary" to="/login?redirect=/checkout">Create Account</Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -1438,21 +1739,48 @@ function Checkout() {
 // ORDERS & 5-STEP TRACKER PAGE
 // ==========================================================================
 function OrderTracking({ orderId }) {
+  const { user, authLoading } = useStore();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
 
   useEffect(() => {
-    api.get('/orders/' + orderId)
-      .then(r => setOrder(r.data))
-      .catch(err => alertError('Order Load Error', 'Could not retrieve tracking details.'))
-      .finally(() => setLoading(false));
-  }, [orderId]);
+    if (!authLoading) {
+      if (!user) {
+        setUnauthorized(true);
+        setLoading(false);
+        return;
+      }
+      api.get('/orders/' + orderId)
+        .then(r => setOrder(r.data))
+        .catch(err => {
+          if (err.response?.status === 401 || err.response?.status === 403) {
+            setUnauthorized(true);
+          } else {
+            alertError('Order Load Error', 'Could not retrieve tracking details.');
+          }
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [orderId, user, authLoading]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div style={{ textAlign: 'center', padding: '60px' }}>
         <Loader2 className="animate-spin" size={36} color="var(--primary)" style={{ margin: '0 auto 12px' }} />
         <p>Loading package itinerary...</p>
+      </div>
+    );
+  }
+
+  if (unauthorized || !user) {
+    return (
+      <div className="neu-card" style={{ textAlign: 'center', padding: '40px' }}>
+        <h3>Sign In Required</h3>
+        <p style={{ color: 'var(--text-secondary)', margin: '12px 0 20px' }}>
+          Please sign in to access details for this order.
+        </p>
+        <Link className="btn-primary btn-sm" to={`/login?redirect=/orders/${orderId}`}>Sign In</Link>
       </div>
     );
   }
@@ -1564,17 +1892,44 @@ function OrderTracking({ orderId }) {
 
 function Orders() {
   const { id } = useParams();
+  const { user, authLoading } = useStore();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) {
-      api.get('/orders')
-        .then(r => setOrders(r.data))
-        .catch(console.error)
-        .finally(() => setLoading(false));
+      if (user) {
+        api.get('/orders')
+          .then(r => setOrders(r.data))
+          .catch(() => {})
+          .finally(() => setLoading(false));
+      } else if (!authLoading) {
+        setLoading(false);
+      }
     }
-  }, [id]);
+  }, [id, user, authLoading]);
+
+  if (!id && !user && !authLoading) {
+    return (
+      <>
+        <Header />
+        <main style={{ maxWidth: '600px', margin: '60px auto', padding: '0 24px', textAlign: 'center' }}>
+          <div className="neu-card" style={{ padding: '48px 32px' }}>
+            <PackageCheck size={48} color="var(--primary)" style={{ margin: '0 auto 16px' }} />
+            <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>Track Your Orders</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Please sign in to view your order history and track active shipments.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <Link className="btn-primary" to="/login?redirect=/orders">Sign In</Link>
+              <Link className="btn-secondary" to="/login?redirect=/orders">Create Account</Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -1649,11 +2004,33 @@ function Orders() {
 // WISHLIST PAGE
 // ==========================================================================
 function Wishlist() {
-  const { wishlist, products } = useStore();
+  const { wishlist, products, user, authLoading } = useStore();
 
   const wishlistedProducts = useMemo(() => {
     return products.filter(p => wishlist.includes(p.id));
   }, [products, wishlist]);
+
+  if (!authLoading && !user) {
+    return (
+      <>
+        <Header />
+        <main style={{ maxWidth: '600px', margin: '60px auto', padding: '0 24px', textAlign: 'center' }}>
+          <div className="neu-card" style={{ padding: '48px 32px' }}>
+            <Heart size={48} color="var(--primary)" style={{ margin: '0 auto 16px' }} />
+            <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>Your Saved Wishlist</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Sign in to view pieces you've saved and sync your wishlist across all devices.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <Link className="btn-primary" to="/login?redirect=/wishlist">Sign In</Link>
+              <Link className="btn-secondary" to="/login?redirect=/wishlist">Create Account</Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -1692,7 +2069,7 @@ function Wishlist() {
 // ACCOUNT DASHBOARD (PROFILE, SAVED ADDRESSES, SETTINGS)
 // ==========================================================================
 function Account() {
-  const { user, logout, loadUser } = useStore();
+  const { user, logout, loadUser, authLoading } = useStore();
   const [activeSubTab, setActiveSubTab] = useState('profile');
   const [editName, setEditName] = useState(user?.name || '');
   const [editPhone, setEditPhone] = useState(user?.phone || '');
@@ -1704,14 +2081,36 @@ function Account() {
     }
   }, [user]);
 
-  if (!user) {
+  if (authLoading) {
     return (
       <>
         <Header />
         <div style={{ textAlign: 'center', padding: '100px 24px' }}>
-          <h3>Please sign in to access your account</h3>
-          <Link className="btn-primary btn-sm" to="/login" style={{ marginTop: '16px' }}>Sign In</Link>
+          <Loader2 className="animate-spin" size={36} color="var(--primary)" style={{ margin: '0 auto 12px' }} />
+          <p>Loading account details...</p>
         </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <Header />
+        <main style={{ maxWidth: '600px', margin: '60px auto', padding: '0 24px', textAlign: 'center' }}>
+          <div className="neu-card" style={{ padding: '48px 32px' }}>
+            <User size={48} color="var(--primary)" style={{ margin: '0 auto 16px' }} />
+            <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>Your Account</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Please sign in to access your profile, track shipments, and manage preferences.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <Link className="btn-primary" to="/login?redirect=/account">Sign In</Link>
+              <Link className="btn-secondary" to="/login?redirect=/account">Create Account</Link>
+            </div>
+          </div>
+        </main>
         <Footer />
       </>
     );
@@ -2053,12 +2452,17 @@ function Support() {
 function Login() {
   const { login, register, user } = useStore();
   const nav = useNavigate();
+  const loc = useLocation();
+  const redirectUrl = useMemo(() => {
+    return new URLSearchParams(loc.search).get('redirect') || '/';
+  }, [loc.search]);
+
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
 
   useEffect(() => {
-    if (user) nav('/');
-  }, [user, nav]);
+    if (user) nav(redirectUrl);
+  }, [user, nav, redirectUrl]);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -2070,7 +2474,7 @@ function Login() {
         await login(form.email, form.password);
         toastSuccess('Signed in successfully');
       }
-      nav('/');
+      nav(redirectUrl);
     } catch (err) {
       alertError('Authentication Error', err.response?.data?.error || 'Invalid credentials');
     }
@@ -2206,7 +2610,7 @@ function VerifyPage() {
 // ADMIN DASHBOARD & PRODUCT/ORDER MANAGER
 // ==========================================================================
 function Admin() {
-  const { user, refreshCatalog } = useStore();
+  const { user, refreshCatalog, authLoading } = useStore();
   const nav = useNavigate();
   const [tab, setTab] = useState('dashboard');
   const [metrics, setMetrics] = useState({});
@@ -2217,21 +2621,20 @@ function Admin() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [productModalOpen, setProductModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (user && user.role !== 'admin') nav('/');
-  }, [user, nav]);
-
   const loadAdminData = () => {
-    api.get('/admin/metrics').then(r => setMetrics(r.data)).catch(console.error);
-    api.get('/admin/products').then(r => setProducts(r.data)).catch(console.error);
-    api.get('/admin/orders').then(r => setOrders(r.data)).catch(console.error);
-    api.get('/admin/customers').then(r => setCustomers(r.data)).catch(console.error);
-    api.get('/settings').then(r => setSettings(r.data)).catch(console.error);
+    if (!user || user.role !== 'admin') return;
+    api.get('/admin/metrics').then(r => setMetrics(r.data)).catch(() => {});
+    api.get('/admin/products').then(r => setProducts(r.data)).catch(() => {});
+    api.get('/admin/orders').then(r => setOrders(r.data)).catch(() => {});
+    api.get('/admin/customers').then(r => setCustomers(r.data)).catch(() => {});
+    api.get('/settings').then(r => setSettings(r.data)).catch(() => {});
   };
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    if (!authLoading && user && user.role === 'admin') {
+      loadAdminData();
+    }
+  }, [user, authLoading]);
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
@@ -2273,6 +2676,37 @@ function Admin() {
       }
     }
   };
+
+  if (authLoading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '120px 24px' }}>
+        <Loader2 className="animate-spin" size={36} color="var(--primary)" style={{ margin: '0 auto 12px' }} />
+        <p>Verifying administrative credentials...</p>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== 'admin') {
+    return (
+      <>
+        <Header />
+        <main style={{ maxWidth: '600px', margin: '60px auto', padding: '0 24px', textAlign: 'center' }}>
+          <div className="neu-card" style={{ padding: '48px 32px' }}>
+            <ShieldCheck size={48} color="var(--primary)" style={{ margin: '0 auto 16px' }} />
+            <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>Admin Access Required</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Please sign in with an administrator account to access the store management dashboard.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <Link className="btn-primary" to="/login?redirect=/admin">Sign In as Admin</Link>
+              <Link className="btn-secondary" to="/">Back to Store</Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <div className="admin-layout">
@@ -2539,10 +2973,12 @@ function Admin() {
                           onClick={async () => {
                             const newStatus = c.status === 'blocked' ? 'active' : 'blocked';
                             const action = newStatus === 'blocked' ? 'block' : 'unblock';
-                            if (!window.confirm(`Are you sure you want to ${action} ${c.name}?`)) return;
+                            const res = await confirmDialog(`Confirm ${action}`, `Are you sure you want to ${action} ${c.name}?`, `Yes, ${action}`, 'Cancel', action === 'block');
+                            if (!res.isConfirmed) return;
                             try {
                               await api.put(`/admin/customers/${c.id}/status`, { status: newStatus });
                               setCustomers(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x));
+                              toastSuccess(`Customer ${action}ed successfully.`);
                             } catch {
                               toastError(`Could not ${action} customer.`);
                             }

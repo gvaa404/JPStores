@@ -69,25 +69,47 @@ export const alertInfo = (title, text = '') => {
   });
 };
 
-export const confirmDialog = async ({
-  title = 'Are you sure?',
-  text = '',
+export const confirmDialog = async (
+  titleOrOpts = 'Are you sure?',
+  maybeText = '',
   confirmText = 'Yes, Proceed',
   cancelText = 'Cancel',
   isDestructive = false
-}) => {
+) => {
+  let title = 'Are you sure?';
+  let text = '';
+  let cText = confirmText;
+  let cnText = cancelText;
+  let destructive = isDestructive;
+
+  if (typeof titleOrOpts === 'object' && titleOrOpts !== null) {
+    title = titleOrOpts.title || title;
+    text = titleOrOpts.text || '';
+    cText = titleOrOpts.confirmText || cText;
+    cnText = titleOrOpts.cancelText || cnText;
+    destructive = Boolean(titleOrOpts.isDestructive);
+  } else if (typeof titleOrOpts === 'string') {
+    title = titleOrOpts;
+    text = maybeText || '';
+  }
+
   const result = await Swal.fire({
     title,
     text,
-    icon: isDestructive ? 'warning' : 'question',
+    icon: destructive ? 'warning' : 'question',
     showCancelButton: true,
-    confirmButtonColor: isDestructive ? '#dc2626' : '#0f172a',
+    confirmButtonColor: destructive ? '#dc2626' : '#0f172a',
     cancelButtonColor: '#64748b',
-    confirmButtonText: confirmText,
-    cancelButtonText: cancelText,
+    confirmButtonText: cText,
+    cancelButtonText: cnText,
     reverseButtons: true
   });
-  return result.isConfirmed;
+  return {
+    isConfirmed: Boolean(result.isConfirmed),
+    valueOf() {
+      return Boolean(result.isConfirmed);
+    }
+  };
 };
 
 export const selectDialog = async ({

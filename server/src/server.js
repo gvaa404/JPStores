@@ -8,8 +8,18 @@ const app = require('./app');
 database.initDatabase();
 database.seedDatabase();
 
-const server = app.listen(config.port, () => {
-  console.log(`JP Store API running on http://localhost:${config.port}`);
+const server = app.listen(config.port, '0.0.0.0', () => {
+  console.log(`JP Store running on http://0.0.0.0:${config.port}`);
 });
+
+function shutdown() {
+  server.close(() => {
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 1500).unref();
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 module.exports = { app, server };

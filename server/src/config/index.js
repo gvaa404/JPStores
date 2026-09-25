@@ -2,12 +2,16 @@
 
 const path = require('path');
 const serverRoot = path.resolve(__dirname, '..', '..');
+const projectRoot = path.resolve(serverRoot, '..');
 require('dotenv').config({ path: path.join(serverRoot, '.env') });
+require('dotenv').config({ path: path.join(projectRoot, '.env') });
 
 const config = {
-  port: process.env.PORT || 4000,
+  port: 3000,
   jwtSecret: process.env.JWT_SECRET || 'jp-store-change-this-secret',
   serverRoot,
+  projectRoot,
+  clientDist: path.join(projectRoot, 'client', 'dist'),
   uploadsDir: path.join(serverRoot, 'uploads'),
   databasePath: path.join(serverRoot, 'jp-store.db'),
   razorpay: {
